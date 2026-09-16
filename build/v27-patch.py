@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# v27: AniList->MAL auto-failover (CGNAT 400s), Mangapill CDN image fix (readdetectiveconan referer + vprox fallback)
+# v27: AniList->MAL auto-failover (CGNAT 400s) + Mangapill CDN image fix
+# Generates v27-build.py from v26-build.py (same output as the original v27 patcher).
 src = '/workspace/notes/v26-build.py'
 s = open(src).read()
 
@@ -32,7 +33,7 @@ function maInfo(id){
   if(id.indexOf('mal:')===0)return jlInfo(id.slice(4));
   return alInfo(id).catch(function(e){ls('o21.aldown',Date.now());throw e});
 }'''
-s = s.replace(OLD , NEW)
+s = s.replace(OLD, NEW)
 
 # 2. alMangaChars: degrade to empty instead of erroring the tab
 OLD2 = "function alMangaChars(title){\n  return alPost("
@@ -41,24 +42,43 @@ i = s.find(OLD2)
 j = s.find("/* home layout */", i)
 assert j > 0
 body = s[i:j]
-assert body.rstrip().endswith('}')
-s = s[:i] + body.rstrip()[:-1] + ").catch(function(){return []});\n}\n" + s[j:]
+core = body.rstrip()
+assert core.endswith('}')
+core = core[:-1].rstrip()   # drop the function's closing brace
+assert core.endswith(';')
+core = core[:-1].rstrip()    # drop the trailing ';' of the .then(...) call
+core = core + "\n    .catch(function(){return []});\n}\n"
+s = s[:i] + core + s[j:]
 
 # 3. reader image chain: direct -> native vprox -> corsproxy
-OLD3 = "      var prox=MPP[0]+encodeURIComponent(u);\n      return '<img src=\"'+esc(u)+'\" loading=\"lazy\" alt=\"\" onerror=\"if(this.dataset.p!!==\\'2\\'){this.dataset.p=\\'2\\';this.src=\\''+prox+'\\'}\">';"
-assert OLD3 in s, 'reader img line not found'
-NEW = "      var prox=MPP[0]+encodeURIComponent(u);\n      var v2='';try{v2=VPROX_B+b64u(u)}catch(e){\n      return '<img src=\"'+esc(u)+'\" loading=\"lazy\" alt=\"\" onerror=\"if(!this.dataset.p&&this.dataset.v!==\\'1\\'){this.dataset.v=\\'1\\';this.src=\\''+v2+'\\'}else if(this.dataset.v===\\'1\\'){this.dataset.v=\\'2\\';this.src=\\''+prox+'\\'}\">';"
-s = s.replace(OLD3, NEW3)
+ANCHOR = "      var prox=MPP[0]+encodeURIComponent(u);"
+assert s.count(ANCHOR) == 1
+i = s.find(ANCHOR)
+j = s.find("\n", i) + 1
+k = s.find("\n", j)
+old_line = s[j:k]
+assert old_line.startswith("      return '<img"), 'unexpected img line: ' + old_line[:60]
+B = chr(92)  # backslash
+NEW3 = (
+    "      var v2='';try{v2=VPROX_B+b64u(u)}catch(e){}\n"
+    "      return '<img src=\"" + "'+esc(u)+'" + "\" loading=\"lazy\" alt=\"\" onerror=\""
+    "if(!this.dataset.p&&this.dataset.v!==" + B + "'1" + B + "'){this.dataset.v=" + B + "'1" + B + "';this.src=" + B + "'" + "'+v2+'" + B + "'}else if(this.dataset.v===" + B + "'1" + B + "'){this.dataset.v=" + B + "'2" + B + "';this.src=" + B + "'" + "'+prox+'" + B + "'}" + "\">';"
+)
+s = s[:j] + NEW3 + s[k:]
 
 # add b64u + VPROX_B helpers next to MPP definition
-OLD4 = None
 import re
-m = re.search(r"var MPP=\][^WIp×NÊ—NÈ‹ÊB˜\ÜÙ\K	ÓTYˆ›İ›İ[™	ÂœÈHËœ™\XÙJK™Ü›İ\
-
-KK™Ü›İ\
-
-H
-È—˜\ˆ”“ÖĞIÚÎ‹ËÛYYØ\^K˜^‹××Ş\˜Ú[™\›ŞÉÎ×™[˜İ[ÛˆJ
-^Ü™]\›ˆØJ
-Kœ™\XÙJ×
-ËÙË	ËIÊKœ™\XÙJ×ËÙË	×ÉÊKœ™\XÙJÏJÉË	ÉÊ_HŠB‚ˆÈˆ˜[›™\‚œÈHËœ™\XÙJ˜ÛÛœÛÛK›ÙÊ	ÖÖU&6–æRc#eÒ&FRÖÆ–Ö—B×&ööbæ”Æ—7BÂ66†W2ÂF†VÖRvW2ÂÆ–v‡BÖöFRr“²"À¢&6öç6öÆRæÆör‚uµ•&6–æRc#uÒæ”Æ—7CÂÓäÔÂWFòÖf–Æ÷fW"²Öæv–ÆÂ4Dâ–ÖvRf—‚r“²" ¦÷WBÒr÷67&F6‚÷v÷&²÷c#rÖ'V–ÆBç’p¦÷Vâ†÷WBÂwrr’çw&—FR‡2¦–×÷'B•ö6ö×–ÆP§•ö6ö×–ÆRæ6ö×–ÆR†÷WBÂF÷&—6SÕG'VR§&–çB‚wc#rÖ'V–ÆBç’w&—GFVâÂ—F†öâô²r¦f÷"fVB–â²vÄF÷vâ‚’rÂvó#æÆF÷vârÂue$õ…ô"rÂv#cGRrÂw&VFFWFV7F—fRuÓ ¢&–çB‚‚tô²r–bfVB–â2VÇ6RtÔ•52r’ÂfVB
+m = re.search(r"var MPP=\[[^\]]*\];", s)
+assert m, 'MPP def not found'
+s = s.replace(m.group(0), m.group(0) + "\nvar VPROX_B='https://megaplay.buzz/__yrcineprox/';\nfunction b64u(x){return btoa(x).replace(/" + B + "+/g,'-').replace(/" + B + "//g,'_').replace(/=+$/,'')}")
+
+
+# 4. banner
+s = s.replace("console.log('[YRcine v26] rate-limit-proof AniList, caches, theme pages, light mode');",
+              "console.log('[YRcine v27] AniList<->MAL auto-failover + Mangapill CDN image fix');")
+
+out = '/scratch/work/v27-build.py'
+open(out, 'w').write(s)
+import py_compile
+py_compile.compile(out, doraise=True)
+print('v27-build.py written, python OK')
