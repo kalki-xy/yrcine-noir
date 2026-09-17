@@ -1,38 +1,33 @@
 # YRcine Noir
 
-A personal, single-file cinematic streaming & entertainment app — movies, anime, manga and AI — wrapped in an Android WebView APK. Built by Yash Raj.
+A personal, single-file cinematic streaming & entertainment app — movies, TV, anime, videos and AI — wrapped in an Android WebView APK.
 
-The entire app is **one HTML file** (no build step, no server, offline-first). The `apk-kit/` wraps that file into a signed, installable Android APK with a native request interceptor that injects referers/UA for stream and manga sources and rewrites HLS manifests through an internal proxy.
+The entire app is **one HTML file** (no build step, no server, offline-first). The `apk-kit/` wraps that file into a signed, installable Android APK with a native request interceptor that injects referers/UA for stream and media sources and rewrites HLS manifests through an internal proxy.
 
 ## What's inside
 
-- **Movies** — TMDB browsing + embed playback
-- **Otaku** — zero-setup anime (AniList with automatic MyAnimeList failover) → AniKoto episodes → MegaPlay HLS streams; three manga sources (Mangapill / WeebCentral / MangaFire) with a unified reader, chapter search, per-source detail tabs
-- **Miru-style settings** — theme mode (dark/light/system) + 7 accent colors, home layout reorder, adult content toggle, anime API picker
-- **Smart networking** — request serialization, rate-limit auto-retry, response caching, AniList↔MAL auto-failover, direct→native-proxy→corsproxy fallback chains for images and streams
+- **Movies & TV** — full TMDB hub: trending hero, In Theaters, Popular, Top Rated, Upcoming, genres, multi-search, detail pages with cast & trailers, Where-to-Watch (India), favorites, Continue Watching with resume + share + "because you watched" recommendations
+- **Otaku** — zero-setup anime streaming (AniList catalog with Jikan fallback) · MegaPlay HLS streams · auto subtitles · manga reader with chapter search and per-source detail tabs
+- **Videos** — YouTube-first (trending, music, gaming, movies) with Dailymotion fallback
+- **AI** — Groq / Gemini / OpenAI chat with live model discovery, image attachments, history
+- **Vault, themes, music, library** — PIN private vault, theme picker, music player, watch history
+- **Smart networking** — request serialization, rate-limit auto-retry, response caching, direct→proxy fallback chains, image-proxy fallbacks for ISP-blocked CDNs
 
 ## Repo layout
 
 ```
 ├── README.md
-├── BUILD.md                     # step-by-step APK build instructions
+├── BUILD.md               # step-by-step APK build instructions
 ├── apk-kit/
-│   ├── AndroidManifest.xml      # versionCode 32 / versionName 27.0
-│   └── src/.../MainActivity.java  # WebView shell + request interceptor + m3u8 rewriting proxy
-├── build/
-│   ├── v27-patch.py             # patcher that generates the v27 app build script
-│   └── smoke_v27.js             # headless regression smoke test (node)
+│   ├── AndroidManifest.xml
+│   └── src/.../MainActivity.java
 └── (app HTML + APK live in the Releases section)
 ```
 
-The app HTML is ~1 MB, so each version ships as a **Release asset** rather than a git blob: grab `YRcine_Noir_VoidVerse-27.html` and `YRcine-Noir-v27-Failover.apk` from the [latest release](../../releases).
+Each version ships as a **Release asset** rather than a git blob — grab `YRcine_Noir_VoidVerse-38.0.html` (or the latest) from [Releases](../../releases).
 
 ## Building the APK
 
-See [BUILD.md](BUILD.md). Requirements: JDK 17, Android SDK platform-34 + build-tools 34.0.0. Keep the same `yrcine.keystore` (in release assets) and keep bumping `versionCode` so updates install over the old build.
-
-## Update cadence
-
-Each app version is a superset of the previous one-file HTML; the patcher chain in `build/` documents the evolution (v20 base → v27). The full patch chain is kept out of git for size — the release assets are the source of truth for each version.
+See [BUILD.md](BUILD.md). Requirements: JDK 17, Android SDK platform-34 + build-tools 34. Keep the same `yrcine.keystore` (in release assets) and keep bumping `versionCode` so updates install over the old build. Current: **versionCode 61 / v38.0**.
 
 > Personal-use app. Content comes from third-party public sites and APIs; sources can change or break independently.
