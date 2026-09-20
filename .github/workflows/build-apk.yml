@@ -1,0 +1,85 @@
+name: Build YRcine Noir APK
+
+# Manual trigger. Produces a signed APK as a downloadable workflow artifact.
+#
+# One-time setup — add these to the repo's Actions secrets
+# (Settings -> Secrets and variables -> Actions):
+#   KEYSTORE_BASE64     : base64 of yrcine.keystore  ->  base64 -w0 yrcine.keystore
+#   KEYSTORE_PASSWORD   : the keystore/key password
+#
+# The signing keystore + launcher icons live in the v27.0 release assets,
+# and the app HTML in the latest release; this workflow downloads them via `gh`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      html_asset:
+        description: "App HTML asset name (blank = pick the newest YRcine_Noir_*.html on the latest release)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install platform-34 + build-tools 34.0.0
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Fetch launcher icons + keystore (v27.0 release)
+        run: |
+          mkdir -p apk-kit/res/mipmap-xxhdpi
+          gh release download v27.0 \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern 'ic_launcher*.png' \
+            --dir apk-kit/res/mipmap-xxhdpi --clobber
+          # keystore preferred from secret; fall back to release asset if present
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > apk-kit/yrcine.keystore
+          else
+            gh release download v27.0 --repo "$GITHUB_REPOSITORY" \
+              --pattern 'yrcine.keystore' --dir apk-kit --clobber
+          fi
+
+      - name: Fetch app HTML (latest release)
+        run: |
+          mkdir -p apk-kit/assets
+          NAME='${{ github.event.inputs.html_asset }}'
+          if [ -z "$NAME" ]; then
+            NAME=$(gh release view --repo "$GITHUB_REPOSITORY" \
+              --json assets --jq '.assets[].name | select(test("^YRcine_Noir_.*\\.html$"))' \
+              | sort -V | tail -n1)
+          fi
+          echo "Using HTML asset: $NAME"
+          gh release download --repo "$GITHUB_REPOSITORY" \
+            --pattern "$NAME" --dir apk-kit --clobber
+          mv "apk-kit/$NAME" apk-kit/assets/index.html
+
+      - name: Build signed APK
+        run: |
+          chmod +x apk-kit/build.sh
+          ./apk-kit/build.sh
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yrcine-noir-apk
+          path: apk-kit/YRcine-Noir-*.apk
+          if-no-files-found: error
